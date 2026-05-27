@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XML Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #111214;
+  --bg2:      #18191d;
+  --bg3:      #1f2127;
+  --bg4:      #272a32;
+  --border:   #2c2f38;
+  --border2:  #383c47;
+  --text:     #cdd2de;
+  --text2:    #7f8899;
+  --text3:    #4a5060;
+  --gold:     #c9a84c;
+  --gold2:    #e6c87a;
+  --teal:     #4ec9b0;
+  --rose:     #e06c75;
+  --purple:   #c678dd;
+  --blue:     #61afef;
+  --orange:   #d19a66;
+  --green:    #98c379;
+  --strip-w:  200px;
+  --header-h: 48px;
+}
+
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); }
+body { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+/* ── HEADER ────────────────────────────────────────────────────────── */
+#header {
+  height: var(--header-h);
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 16px; gap: 14px;
+  position: relative; z-index: 100;
+}
+#header h1 {
+  font-family: 'Crimson Pro', serif;
+  font-size: 19px; font-weight: 300;
+  color: var(--gold2); letter-spacing: .5px;
+  white-space: nowrap;
+}
+#header h1 em { font-style: italic; }
+.hstat {
+  background: var(--bg3); border: 1px solid var(--border);
+  padding: 2px 9px; border-radius: 20px;
+  font-size: 10px; color: var(--text2);
+}
+.hstat b { color: var(--text); }
+.header-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.hbtn {
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text2); padding: 5px 12px; border-radius: 5px;
+  cursor: pointer; font-family: inherit; font-size: 11px;
+  transition: all .15s;
+}
+.hbtn:hover { background: var(--bg4); color: var(--text); }
+
+/* ── LAYOUT ────────────────────────────────────────────────────────── */
+#app { display: flex; height: calc(100vh - var(--header-h)); }
+
+/* ── STRIP (IIIF-style thumbnail column) ───────────────────────────── */
+#strip {
+  width: var(--strip-w);
+  min-width: var(--strip-w);
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+#strip-toolbar {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 6px;
+}
+#strip-search {
+  width: 100%; background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text); padding: 6px 8px;
+  border-radius: 5px; font-family: inherit; font-size: 11px;
+  outline: none; transition: border-color .15s;
+}
+#strip-search:focus { border-color: var(--gold); }
+#strip-search::placeholder { color: var(--text3); }
+.strip-meta {
+  font-size: 10px; color: var(--text3);
+  padding: 0 2px; display: flex; justify-content: space-between;
+}
+.strip-meta b { color: var(--text2); }
+
+/* Scroll container for the strip */
+#strip-scroll {
+  flex: 1; overflow-y: auto;
+  padding: 6px;
+}
+#strip-scroll::-webkit-scrollbar { width: 4px; }
+#strip-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* Each strip item = image + label stacked vertically, like IIIF */
+.strip-item {
+  width: 100%; margin-bottom: 8px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 5px; overflow: hidden;
+  background: var(--bg3);
+  transition: border-color .15s, transform .1s;
+  position: relative;
+}
+.strip-item:hover { border-color: var(--border2); transform: translateX(2px); }
+.strip-item.active { border-color: var(--gold); }
+.strip-item img {
+  width: 100%; display: block;
+  background: var(--bg4);
+  min-height: 60px;
+}
+.strip-item .strip-no-img {
+  width: 100%; height: 80px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text3); font-size: 10px;
+  background: var(--bg4);
+}
+.strip-label {
+  padding: 5px 7px;
+  font-size: 10px; color: var(--text2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border-top: 1px solid var(--border);
+  background: var(--bg2);
+}
+.strip-item.active .strip-label { color: var(--gold); }
+.strip-badge {
+  position: absolute; top: 4px; right: 4px;
+  font-size: 9px; padding: 1px 5px; border-radius: 3px;
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text3);
+}
+.strip-badge.page { border-color: var(--teal); color: var(--teal); }
+.strip-badge.alto { border-color: var(--purple); color: var(--purple); }
+
+/* skeleton */
+.strip-skeleton {
+  width: 100%; height: 130px; margin-bottom: 8px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 5px; animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:.8} }
+
+/* strip pagination */
+#strip-pg {
+  padding: 8px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 5px; justify-content: center;
+}
+.pg-btn {
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text2); width: 24px; height: 24px;
+  border-radius: 4px; cursor: pointer; font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.pg-btn:hover:not(:disabled) { background: var(--bg4); color: var(--text); }
+.pg-btn:disabled { opacity: .3; cursor: default; }
+.pg-info { font-size: 10px; color: var(--text3); flex: 1; text-align: center; }
+
+/* ── VIEWER AREA ───────────────────────────────────────────────────── */
+#viewer { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* top bar with doc info + nav */
+#viewer-bar {
+  padding: 8px 16px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+  min-height: 44px;
+}
+#doc-name {
+  font-family: 'Crimson Pro', serif;
+  font-size: 16px; font-weight: 300; font-style: italic;
+  color: var(--text); flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#doc-fmt {
+  font-size: 10px; padding: 2px 7px; border-radius: 3px;
+  background: var(--bg3); border: 1px solid var(--border2);
+}
+.nav-btn {
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text2); width: 28px; height: 28px; border-radius: 5px;
+  cursor: pointer; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; flex-shrink: 0;
+}
+.nav-btn:hover:not(:disabled) { background: var(--bg4); color: var(--text); }
+.nav-btn:disabled { opacity: .25; cursor: default; }
+
+/* region type legend */
+#legend {
+  padding: 6px 16px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex; gap: 8px; align-items: center;
+  flex-wrap: wrap; min-height: 32px;
+}
+.legend-label { font-size: 10px; color: var(--text3); margin-right: 4px; }
+.legend-item {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 10px; color: var(--text2); cursor: pointer;
+  padding: 2px 6px; border-radius: 3px;
+  border: 1px solid transparent;
+  transition: all .15s;
+}
+.legend-item:hover { background: var(--bg3); }
+.legend-item.hidden { opacity: .35; }
+.legend-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.overlay-toggle {
+  margin-left: auto;
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text2); padding: 3px 10px; border-radius: 4px;
+  cursor: pointer; font-family: inherit; font-size: 10px;
+  transition: all .15s;
+}
+.overlay-toggle:hover { background: var(--bg4); }
+.overlay-toggle.on { color: var(--gold); border-color: var(--gold); }
+
+/* two-panel split: image+canvas | text mirror */
+#panels {
+  flex: 1; display: flex; overflow: hidden;
+}
+
+/* ── IMAGE PANEL ───────────────────────────────────────────────────── */
+#img-panel {
+  flex: 1; overflow: auto; position: relative;
+  background: var(--bg);
+  padding: 16px;
+}
+#img-panel::-webkit-scrollbar { width: 6px; height: 6px; }
+#img-panel::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* zoom wrapper — straightforward block container */
+#img-zoom-wrap {
+  display: inline-block;
+  min-width: 100%;
+}
+#img-container {
+  position: relative; display: inline-block;
+}
+#main-img {
+  display: block;
+  box-shadow: 0 4px 32px rgba(0,0,0,.7);
+  border-radius: 2px;
+  user-select: none;
+  /* width is set by JS to naturalWidth * zoom */
+}
+#overlay-canvas {
+  position: absolute; top: 0; left: 0;
+  pointer-events: all; cursor: crosshair;
+}
+
+/* zoom controls — floating pill at bottom of image panel */
+#zoom-bar {
+  position: sticky; bottom: 0; left: 0;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 20px; padding: 4px 10px;
+  margin-top: 8px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.5);
+  user-select: none;
+}
+.zoom-btn {
+  background: none; border: none; color: var(--text2);
+  width: 22px; height: 22px; border-radius: 50%;
+  cursor: pointer; font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .1s; font-family: inherit;
+}
+.zoom-btn:hover { background: var(--bg4); color: var(--text); }
+#zoom-label {
+  font-size: 10px; color: var(--text2); min-width: 36px;
+  text-align: center; cursor: pointer;
+}
+#zoom-label:hover { color: var(--gold); }
+
+.img-empty {
+  color: var(--text3); text-align: center; padding: 60px 20px;
+  font-size: 12px; margin: auto;
+}
+.img-empty .icon { font-size: 48px; opacity: .2; margin-bottom: 16px; }
+
+/* ── TEXT PANEL (mirror) ───────────────────────────────────────────── */
+#divider {
+  width: 4px; background: var(--border);
+  cursor: col-resize; flex-shrink: 0;
+  transition: background .15s;
+}
+#divider:hover, #divider.dragging { background: var(--gold); }
+
+#text-panel {
+  width: 380px; min-width: 200px;
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+#text-panel-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px; color: var(--text3);
+  display: flex; align-items: center; gap: 8px;
+}
+#text-panel-header b { color: var(--text2); }
+#text-scroll {
+  flex: 1; overflow-y: auto; padding: 8px;
+}
+#text-scroll::-webkit-scrollbar { width: 4px; }
+#text-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* region block in text panel */
+.text-region {
+  margin-bottom: 14px;
+}
+.text-region-header {
+  font-size: 10px; color: var(--text3);
+  padding: 3px 6px; margin-bottom: 4px;
+  border-left: 2px solid transparent;
+  display: flex; align-items: center; gap: 6px;
+}
+.text-region-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+
+/* Each text line in the mirror */
+.text-line {
+  font-family: 'Crimson Pro', serif;
+  font-size: 15px; font-weight: 300;
+  color: var(--text2);
+  padding: 3px 8px 3px 12px;
+  border-left: 2px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all .1s;
+  line-height: 1.5;
+  /* direction and text-align set per-line by JS based on script detection */
+}
+.text-line:hover {
+  background: var(--bg3);
+  color: var(--text);
+  border-left-color: var(--border2);
+}
+.text-line.highlighted {
+  background: var(--bg4);
+  color: var(--gold2);
+  border-left-color: var(--gold);
+}
+.text-line.no-text {
+  color: var(--text3); font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-style: italic;
+}
+
+/* ── LOADING / SPINNER ─────────────────────────────────────────────── */
+.spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid var(--border2); border-top-color: var(--gold);
+  border-radius: 50%; animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── SETTINGS OVERLAY ──────────────────────────────────────────────── */
+#settings-overlay {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.75); backdrop-filter: blur(4px);
+  align-items: center; justify-content: center;
+}
+#settings-overlay.open { display: flex; }
+#settings-panel {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: 10px; width: 500px; max-width: calc(100vw - 40px);
+  padding: 26px;
+  box-shadow: 0 16px 64px rgba(0,0,0,.7);
+}
+#settings-panel h2 {
+  font-family: 'Crimson Pro', serif; font-size: 20px;
+  font-weight: 300; color: var(--gold2); margin-bottom: 20px;
+}
+.field-label {
+  font-size: 10px; color: var(--text3); text-transform: uppercase;
+  letter-spacing: .05em; margin-bottom: 5px;
+}
+.dir-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text); padding: 8px 10px; border-radius: 5px;
+  font-family: inherit; font-size: 12px; outline: none;
+  transition: border-color .15s;
+}
+.dir-input:focus { border-color: var(--gold); }
+.dir-input.valid { border-color: var(--green); }
+.dir-input.invalid { border-color: var(--rose); }
+.dir-hint { font-size: 10px; margin-top: 4px; min-height: 14px; }
+.dir-hint.ok { color: var(--green); }
+.dir-hint.err { color: var(--rose); }
+.hint-note {
+  margin-top: 12px; padding: 10px; background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 5px;
+  font-size: 10px; color: var(--text2); line-height: 1.6;
+}
+.settings-actions {
+  display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px;
+}
+.btn-cancel {
+  background: none; border: 1px solid var(--border2); color: var(--text2);
+  padding: 7px 16px; border-radius: 5px; cursor: pointer;
+  font-family: inherit; font-size: 12px; transition: all .15s;
+}
+.btn-cancel:hover { background: var(--bg3); }
+.btn-save {
+  background: var(--gold); border: none; color: #111;
+  padding: 7px 18px; border-radius: 5px; cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 500;
+  transition: all .15s;
+}
+.btn-save:hover { background: var(--gold2); }
+
+/* ── TOAST ─────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--bg4); border: 1px solid var(--border2);
+  color: var(--text); padding: 8px 16px; border-radius: 6px;
+  font-size: 11px; z-index: 300; pointer-events: none;
+  opacity: 0; transition: opacity .2s;
+  box-shadow: 0 4px 16px rgba(0,0,0,.5);
+}
+#toast.show { opacity: 1; }
+#toast.err { border-color: var(--rose); color: var(--rose); }
+
+/* kbd hints */
+.kbd { background: var(--bg3); border: 1px solid var(--border2); border-radius: 3px; padding: 0 4px; font-size: 10px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>📜 XML <em>Viewer</em></h1>
+  <div class="hstat">Docs: <b id="stat-total">—</b></div>
+  <div class="hstat">Images: <b id="stat-imgs">—</b></div>
+  <div class="header-right">
+    <span style="font-size:10px;color:var(--text3)"><span class="kbd">←</span><span class="kbd">→</span> nav &nbsp; <span class="kbd">+</span><span class="kbd">−</span> zoom &nbsp; <span class="kbd">O</span> overlay</span>
+    <button class="hbtn" onclick="openSettings()">⚙ Settings</button>
+  </div>
+</div>
+
+<div id="app">
+
+  <!-- STRIP -->
+  <div id="strip">
+    <div id="strip-toolbar">
+      <input id="strip-search" type="text" placeholder="Search documents…" oninput="onSearch(this.value)">
+      <div class="strip-meta">
+        <span><b id="strip-count">0</b> documents</span>
+      </div>
+    </div>
+    <div id="strip-scroll"></div>
+    <div id="strip-pg">
+      <button class="pg-btn" id="pg-first" onclick="goPage(0)">«</button>
+      <button class="pg-btn" id="pg-prev" onclick="goPage(state.page-1)">‹</button>
+      <span class="pg-info" id="pg-info">— / —</span>
+      <button class="pg-btn" id="pg-next" onclick="goPage(state.page+1)">›</button>
+      <button class="pg-btn" id="pg-last" onclick="goPage(state.totalPages-1)">»</button>
+    </div>
+  </div>
+
+  <!-- VIEWER -->
+  <div id="viewer">
+    <div id="viewer-bar">
+      <button class="nav-btn" id="btn-prev" onclick="navigateDoc(-1)" disabled>‹</button>
+      <button class="nav-btn" id="btn-next" onclick="navigateDoc(1)" disabled>›</button>
+      <div id="doc-name">Select a document</div>
+      <span id="doc-fmt" style="display:none"></span>
+      <span id="viewer-loading" style="display:none"><span class="spinner"></span></span>
+    </div>
+
+    <div id="legend">
+      <span class="legend-label">Regions:</span>
+      <span id="legend-items" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+      <button class="overlay-toggle on" id="overlay-toggle" onclick="toggleOverlay()">Overlay ON</button>
+    </div>
+
+    <div id="panels">
+      <!-- Image + canvas -->
+      <div id="img-panel">
+        <div class="img-empty" id="img-empty">
+          <div class="icon">⬡</div>
+          <p>No document selected</p>
+          <p style="margin-top:6px;font-size:10px;color:var(--text3)">Choose from the strip on the left</p>
+        </div>
+        <div id="img-zoom-wrap" style="display:none">
+          <div id="img-container">
+            <img id="main-img" alt="">
+            <canvas id="overlay-canvas"></canvas>
+          </div>
+          <div id="zoom-bar">
+            <button class="zoom-btn" onclick="adjustZoom(-0.15)" title="Zoom out (-)">−</button>
+            <span id="zoom-label" onclick="resetZoom()" title="Click to fit">100%</span>
+            <button class="zoom-btn" onclick="adjustZoom(+0.15)" title="Zoom in (+)">+</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resizable divider -->
+      <div id="divider" onmousedown="startResize(event)"></div>
+
+      <!-- Text mirror -->
+      <div id="text-panel">
+        <div id="text-panel-header">
+          <b id="text-region-count">0</b> regions &nbsp;·&nbsp;
+          <b id="text-line-count">0</b> lines
+          &nbsp;<span id="text-loading" style="display:none"><span class="spinner"></span></span>
+        </div>
+        <div id="text-scroll"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div id="settings-overlay" onclick="closeIfOverlay(event,'settings-overlay')">
+  <div id="settings-panel">
+    <h2>Settings</h2>
+    <div style="margin-bottom:16px">
+      <div class="field-label">Input Directory</div>
+      <input class="dir-input" id="input-dir" type="text"
+             placeholder="/path/to/xml/files"
+             oninput="validateDir()">
+      <div class="dir-hint" id="dir-hint"></div>
+    </div>
+    <div class="hint-note">
+      The directory should contain <b>.xml</b> files (PAGE or ALTO format).<br>
+      Sidecar images are discovered automatically by matching filename.<br>
+      Images can live in the same folder or in a subfolder named <code>images/</code>, <code>img/</code>, <code>jpg/</code>, or <code>tiff/</code>.
+    </div>
+    <div class="settings-actions">
+      <button class="btn-cancel" onclick="closeSettings()">Cancel</button>
+      <button class="btn-save" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Palette for region types ──────────────────────────────────────────────────
+const TYPE_COLORS = [
+  '#4ec9b0','#c678dd','#61afef','#e06c75','#d19a66',
+  '#98c379','#c9a84c','#56b6c2','#be5046','#abb2bf',
+];
+const typeColorMap = {};
+let colorIdx = 0;
+function colorForType(type) {
+  if (!typeColorMap[type]) {
+    typeColorMap[type] = TYPE_COLORS[colorIdx % TYPE_COLORS.length];
+    colorIdx++;
+  }
+  return typeColorMap[type];
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+const state = {
+  page: 0, totalPages: 0, total: 0,
+  docs: [],             // current page docs
+  currentDocIdx: -1,
+  currentDoc: null,
+  xmlData: null,
+  overlayOn: true,
+  hiddenTypes: new Set(),
+  highlightedLineId: null,
+  search: '',
+  loading: false,
+  zoom: 1.0,            // current zoom factor
+};
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  const s = await fetch('/api/settings').then(r=>r.json());
+  document.getElementById('input-dir').value = s.inputDir || '';
+  if (!s.inputDir) { openSettings(); return; }
+  loadPage(0);
+  refreshStats();
+}
+
+async function refreshStats() {
+  try {
+    const s = await fetch('/api/stats').then(r=>r.json());
+    document.getElementById('stat-total').textContent = s.total.toLocaleString();
+    document.getElementById('stat-imgs').textContent = s.withImage.toLocaleString();
+  } catch {}
+}
+
+// ── Strip (document list) ─────────────────────────────────────────────────────
+let searchTimer;
+function onSearch(v) {
+  clearTimeout(searchTimer);
+  state.search = v;
+  searchTimer = setTimeout(() => loadPage(0), 300);
+}
+
+async function loadPage(page) {
+  if (state.loading) return;
+  state.loading = true;
+  showSkeletons();
+  let url = `/api/docs?page=${page}&limit=40`;
+  if (state.search) url += `&search=${encodeURIComponent(state.search)}`;
+  try {
+    const data = await fetch(url).then(r=>r.json());
+    state.docs = data.docs;
+    state.page = data.page;
+    state.totalPages = data.pages;
+    state.total = data.total;
+    document.getElementById('strip-count').textContent = data.total.toLocaleString();
+    updatePagination();
+    renderStrip();
+  } catch(e) { console.error(e); }
+  finally { state.loading = false; }
+}
+
+function showSkeletons() {
+  const el = document.getElementById('strip-scroll');
+  el.innerHTML = Array(8).fill('<div class="strip-skeleton"></div>').join('');
+}
+
+function renderStrip() {
+  const el = document.getElementById('strip-scroll');
+  if (!state.docs.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:10px">No documents found</div>';
+    return;
+  }
+  el.innerHTML = state.docs.map((doc, i) => `
+    <div class="strip-item ${state.currentDocIdx === i && state.page === state.page ? 'active' : ''}"
+         id="strip-${i}" onclick="selectDoc(${i})">
+      ${doc.hasImage
+        ? `<img src="/api/thumb/${encodeURIComponent(doc.id)}" loading="lazy" onerror="this.parentNode.querySelector('.strip-no-img') && this.style.display='none'">`
+        : `<div class="strip-no-img">no image</div>`
+      }
+      <div class="strip-label">${escHtml(doc.id)}</div>
+    </div>
+  `).join('');
+}
+
+function updatePagination() {
+  const p = state.page, tp = state.totalPages;
+  document.getElementById('pg-info').textContent = `${p+1}/${tp||1}`;
+  document.getElementById('pg-first').disabled = p===0;
+  document.getElementById('pg-prev').disabled = p===0;
+  document.getElementById('pg-next').disabled = p>=tp-1;
+  document.getElementById('pg-last').disabled = p>=tp-1;
+}
+
+function goPage(p) {
+  p = Math.max(0, Math.min(p, state.totalPages-1));
+  if (p===state.page && state.docs.length) return;
+  loadPage(p);
+}
+
+// ── Doc selection ─────────────────────────────────────────────────────────────
+async function selectDoc(idx) {
+  state.currentDocIdx = idx;
+  const doc = state.docs[idx];
+  state.currentDoc = doc;
+
+  // update active strip item
+  document.querySelectorAll('.strip-item.active').forEach(e=>e.classList.remove('active'));
+  document.getElementById(`strip-${idx}`)?.classList.add('active');
+
+  document.getElementById('doc-name').textContent = doc.id;
+  document.getElementById('btn-prev').disabled = idx <= 0 && state.page <= 0;
+  document.getElementById('btn-next').disabled = idx >= state.docs.length-1 && state.page >= state.totalPages-1;
+
+  // Show image
+  const imgEmpty = document.getElementById('img-empty');
+  const zoomWrap = document.getElementById('img-zoom-wrap');
+  if (doc.hasImage) {
+    imgEmpty.style.display = 'none';
+    zoomWrap.style.display = 'block';
+    const img = document.getElementById('main-img');
+    img.src = `/api/image/${encodeURIComponent(doc.id)}`;
+    img.onload = () => { fitZoom(); loadXml(doc.id); };
+    img.onerror = () => { loadXml(doc.id); };
+  } else {
+    imgEmpty.style.display = 'flex';
+    zoomWrap.style.display = 'none';
+    loadXml(doc.id);
+  }
+}
+
+async function loadXml(docId) {
+  const loadingEl = document.getElementById('viewer-loading');
+  const textLoading = document.getElementById('text-loading');
+  loadingEl.style.display = 'inline';
+  textLoading.style.display = 'inline';
+
+  // clear text panel
+  document.getElementById('text-scroll').innerHTML = '';
+  document.getElementById('legend-items').innerHTML = '';
+  clearCanvas();
+
+  try {
+    const data = await fetch(`/api/xml/${encodeURIComponent(docId)}`).then(r=>r.json());
+    if (data.error) throw new Error(data.error);
+    state.xmlData = data;
+
+    const fmtEl = document.getElementById('doc-fmt');
+    fmtEl.style.display = 'inline';
+    fmtEl.textContent = data.format;
+    fmtEl.style.color = data.format === 'PAGE' ? 'var(--teal)' : 'var(--purple)';
+
+    buildLegend(data);
+    renderTextPanel(data);
+    if (document.getElementById('main-img').complete && document.getElementById('img-zoom-wrap').style.display !== 'none') {
+      drawOverlay(data);
+    } else {
+      document.getElementById('main-img').onload = () => drawOverlay(data);
+    }
+  } catch(e) {
+    toast(e.message, 'err');
+    document.getElementById('text-scroll').innerHTML =
+      `<div style="padding:20px;color:var(--rose);font-size:11px">Error: ${escHtml(e.message)}</div>`;
+  } finally {
+    loadingEl.style.display = 'none';
+    textLoading.style.display = 'none';
+  }
+}
+
+// ── Legend ────────────────────────────────────────────────────────────────────
+function buildLegend(data) {
+  const container = document.getElementById('legend-items');
+  const types = data.regionTypes || [...new Set(data.regions.map(r=>r.type))];
+  container.innerHTML = types.map(t => `
+    <div class="legend-item ${state.hiddenTypes.has(t)?'hidden':''}"
+         onclick="toggleType('${escAttr(t)}')" title="Click to toggle">
+      <div class="legend-dot" style="background:${colorForType(t)}"></div>
+      ${escHtml(t)}
+    </div>
+  `).join('');
+}
+
+function toggleType(type) {
+  if (state.hiddenTypes.has(type)) state.hiddenTypes.delete(type);
+  else state.hiddenTypes.add(type);
+  buildLegend(state.xmlData);
+  drawOverlay(state.xmlData);
+  renderTextPanel(state.xmlData);
+}
+
+// ── Canvas overlay ────────────────────────────────────────────────────────────
+function clearCanvas() {
+  const canvas = document.getElementById('overlay-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+function drawOverlay(data) {
+  if (!data) return;
+  const img = document.getElementById('main-img');
+  const canvas = document.getElementById('overlay-canvas');
+  if (!img.naturalWidth) return;
+
+  // canvas matches displayed (zoomed) image size
+  canvas.width  = img.offsetWidth  || img.naturalWidth;
+  canvas.height = img.offsetHeight || img.naturalHeight;
+  const scaleX = canvas.width  / data.imageWidth;
+  const scaleY = canvas.height / data.imageHeight;
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if (!state.overlayOn) return;
+
+  // Stroke widths scale with zoom so lines stay visually thin at all zoom levels
+  const sw = 1 / state.zoom;
+
+  for (const region of data.regions) {
+    if (state.hiddenTypes.has(region.type)) continue;
+    const regionColor = colorForType(region.type);
+
+    // Region outline — very light fill, 1px stroke in region color
+    drawPolygon(ctx, region.coords, scaleX, scaleY, regionColor, 0.04, 1);
+
+    for (const line of region.textlines) {
+      const isHL = line.id === state.highlightedLineId;
+
+      // Text lines — region color stroke at low opacity; stronger fill when highlighted
+      const fillAlpha   = isHL ? 0.18 : 0.03;
+      const strokeAlpha = isHL ? 0.70 : 0.35;
+      const lineW       = 1;  // always 1 canvas px — never thicker on hover
+
+      drawPolygonStyled(ctx, line.coords, scaleX, scaleY, regionColor, fillAlpha, regionColor, strokeAlpha, lineW);
+
+      // Baseline — always red dashed, constant thin width regardless of hover
+      if (line.baseline?.points?.length >= 2) {
+        ctx.beginPath();
+        ctx.strokeStyle = '#ff3333';
+        ctx.lineWidth   = 1;
+        ctx.globalAlpha = 0.75;
+        ctx.setLineDash([]);
+        const pts = line.baseline.points;
+        ctx.moveTo(pts[0].x * data.imageWidth * scaleX, pts[0].y * data.imageHeight * scaleY);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i].x * data.imageWidth * scaleX, pts[i].y * data.imageHeight * scaleY);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+}
+
+function drawPolygon(ctx, coords, sx, sy, color, fillAlpha, strokeW) {
+  if (!coords || coords.length < 3) return;
+  const data = state.xmlData;
+  ctx.beginPath();
+  ctx.moveTo(coords[0].x * data.imageWidth * sx, coords[0].y * data.imageHeight * sy);
+  for (let i=1;i<coords.length;i++) {
+    ctx.lineTo(coords[i].x * data.imageWidth * sx, coords[i].y * data.imageHeight * sy);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.globalAlpha = fillAlpha;
+  ctx.fill();
+  ctx.globalAlpha = 0.7;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = strokeW;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// Separate fill-color from stroke-color for text lines
+function drawPolygonStyled(ctx, coords, sx, sy, fillColor, fillAlpha, strokeColor, strokeAlpha, strokeW) {
+  if (!coords || coords.length < 3) return;
+  const data = state.xmlData;
+  ctx.beginPath();
+  ctx.moveTo(coords[0].x * data.imageWidth * sx, coords[0].y * data.imageHeight * sy);
+  for (let i = 1; i < coords.length; i++) {
+    ctx.lineTo(coords[i].x * data.imageWidth * sx, coords[i].y * data.imageHeight * sy);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.globalAlpha = fillAlpha;
+  ctx.fill();
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = strokeW;
+  ctx.globalAlpha = strokeAlpha;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// ── Script detection (RTL vs LTR) ────────────────────────────────────────────
+// Returns 'rtl' if the text contains RTL characters (Hebrew, Arabic, etc.)
+// Uses Unicode block ranges — no external library needed
+function detectDir(text) {
+  if (!text) return 'ltr';
+  // RTL Unicode ranges: Hebrew U+0590-05FF, Arabic U+0600-06FF,
+  // Arabic Supplement U+0750-077F, Arabic Extended-A U+08A0-08FF,
+  // Arabic Presentation Forms-A U+FB50-FDFF, Arabic Presentation Forms-B U+FE70-FEFF,
+  // Hebrew Presentation Forms U+FB1D-FB4F, Syriac U+0700-074F, Thaana U+0780-07BF
+  const RTL_RE = /[֐-׿؀-ۿ܀-ݏݐ-ݿހ-޿ࢠ-ࣿיִ-ﭏﭐ-﷿ﹰ-﻿]/;
+  // Count RTL vs LTR strong chars to handle mixed text correctly
+  const rtlCount = (text.match(/[֐-׿؀-ۿ܀-ݏݐ-ݿހ-޿ࢠ-ࣿיִ-ﭏﭐ-﷿ﹰ-﻿]/g) || []).length;
+  const ltrCount = (text.match(/[A-Za-zÀ-ɏЀ-ӿ]/g) || []).length;
+  if (rtlCount === 0 && ltrCount === 0) return RTL_RE.test(text) ? 'rtl' : 'ltr';
+  return rtlCount >= ltrCount ? 'rtl' : 'ltr';
+}
+
+// ── Text mirror panel ─────────────────────────────────────────────────────────
+function renderTextPanel(data) {
+  const scroll = document.getElementById('text-scroll');
+  let regionCount = 0, lineCount = 0;
+
+  const html = data.regions
+    .filter(r => !state.hiddenTypes.has(r.type) && r.textlines.length > 0)
+    .map(region => {
+      regionCount++;
+      const color = colorForType(region.type);
+      const lines = region.textlines.map(line => {
+        lineCount++;
+        const hasText = line.text && line.text.trim();
+        const isHL = line.id === state.highlightedLineId;
+        const dir = detectDir(line.text);
+        const align = dir === 'rtl' ? 'right' : 'left';
+        return `<div class="text-line ${isHL?'highlighted':''} ${hasText?'':'no-text'}"
+                     id="tl-${escAttr(line.id)}"
+                     style="direction:${dir};text-align:${align}"
+                     onmouseenter="hoverLine('${escAttr(line.id)}')"
+                     onmouseleave="unhoverLine()"
+                     onclick="clickLine('${escAttr(line.id)}')">
+          ${hasText ? escHtml(line.text) : '[ no transcription ]'}
+        </div>`;
+      }).join('');
+
+      const label = region.label || region.id;
+      return `<div class="text-region" id="tr-${escAttr(region.id)}">
+        <div class="text-region-header" style="border-left-color:${color}">
+          <div class="text-region-dot" style="background:${color}"></div>
+          <span style="color:${color}">${escHtml(region.type)}</span>
+          ${label !== region.id ? `<span style="color:var(--text3)">· ${escHtml(label)}</span>` : ''}
+        </div>
+        ${lines}
+      </div>`;
+    }).join('');
+
+  scroll.innerHTML = html || '<div style="padding:20px;color:var(--text3);font-size:10px">No text regions found</div>';
+  document.getElementById('text-region-count').textContent = regionCount;
+  document.getElementById('text-line-count').textContent = lineCount;
+}
+
+// ── Highlight correspondence ──────────────────────────────────────────────────
+function hoverLine(lineId) {
+  state.highlightedLineId = lineId;
+  // highlight in text panel
+  document.querySelectorAll('.text-line.highlighted').forEach(e=>e.classList.remove('highlighted'));
+  document.getElementById(`tl-${lineId}`)?.classList.add('highlighted');
+  // redraw overlay
+  if (state.xmlData) drawOverlay(state.xmlData);
+}
+
+function unhoverLine() {
+  state.highlightedLineId = null;
+  document.querySelectorAll('.text-line.highlighted').forEach(e=>e.classList.remove('highlighted'));
+  if (state.xmlData) drawOverlay(state.xmlData);
+}
+
+function clickLine(lineId) {
+  // Find the line's centroid, scroll image panel to it
+  if (!state.xmlData) return;
+  for (const region of state.xmlData.regions) {
+    const line = region.textlines.find(l => l.id === lineId);
+    if (line && line.coords.length) {
+      const img3 = document.getElementById('main-img');
+      const cx = line.coords.reduce((s,p)=>s+p.x,0)/line.coords.length * img3.offsetWidth;
+      const cy = line.coords.reduce((s,p)=>s+p.y,0)/line.coords.length * img3.offsetHeight;
+      const panel = document.getElementById('img-panel');
+      panel.scrollTo({ left: cx - panel.clientWidth/2, top: cy - panel.clientHeight/2, behavior: 'smooth' });
+      break;
+    }
+  }
+}
+
+// Canvas mouse → highlight from image side
+document.getElementById('overlay-canvas').addEventListener('mousemove', e => {
+  if (!state.xmlData || !state.overlayOn) return;
+  const canvas = document.getElementById('overlay-canvas');
+  const rect = canvas.getBoundingClientRect();
+  // mouse position in CSS pixels; img.offsetWidth already reflects zoom
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const img2 = document.getElementById('main-img');
+  const scaleX = img2.offsetWidth  / state.xmlData.imageWidth;
+  const scaleY = img2.offsetHeight / state.xmlData.imageHeight;
+
+  let found = null;
+  let foundArea = Infinity;
+  for (const region of state.xmlData.regions) {
+    if (state.hiddenTypes.has(region.type)) continue;
+    for (const line of region.textlines) {
+      const scaled = line.coords.map(p => ({
+        x: p.x * state.xmlData.imageWidth  * scaleX,
+        y: p.y * state.xmlData.imageHeight * scaleY,
+      }));
+      if (pointInPolygon(mx, my, scaled)) {
+        const area = polygonArea(scaled);
+        if (area < foundArea) { found = line.id; foundArea = area; }
+      }
+    }
+  }
+  if (found !== state.highlightedLineId) {
+    if (found) hoverLine(found);
+    else unhoverLine();
+    // scroll text panel to the highlighted line
+    if (found) {
+      document.getElementById(`tl-${found}`)?.scrollIntoView({block:'nearest', behavior:'smooth'});
+    }
+  }
+});
+
+document.getElementById('overlay-canvas').addEventListener('mouseleave', () => unhoverLine());
+
+function pointInPolygon(px, py, poly) {
+  let inside = false;
+  for (let i=0, j=poly.length-1; i<poly.length; j=i++) {
+    const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    if (((yi>py)!==(yj>py)) && (px<(xj-xi)*(py-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+
+function polygonArea(poly) {
+  let a=0;
+  for (let i=0,j=poly.length-1;i<poly.length;j=i++) {
+    a+=poly[j].x*poly[i].y - poly[i].x*poly[j].y;
+  }
+  return Math.abs(a/2);
+}
+
+// ── Overlay toggle ────────────────────────────────────────────────────────────
+function toggleOverlay() {
+  state.overlayOn = !state.overlayOn;
+  const btn = document.getElementById('overlay-toggle');
+  btn.textContent = state.overlayOn ? 'Overlay ON' : 'Overlay OFF';
+  btn.classList.toggle('on', state.overlayOn);
+  if (state.xmlData) drawOverlay(state.xmlData);
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+async function navigateDoc(dir) {
+  let nextIdx = state.currentDocIdx + dir;
+  if (nextIdx < 0) {
+    if (state.page > 0) { await loadPage(state.page-1); nextIdx = state.docs.length-1; }
+    else return;
+  } else if (nextIdx >= state.docs.length) {
+    if (state.page < state.totalPages-1) { await loadPage(state.page+1); nextIdx = 0; }
+    else return;
+  }
+  selectDoc(nextIdx);
+  document.getElementById(`strip-${nextIdx}`)?.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+
+// ── Resizable divider ─────────────────────────────────────────────────────────
+function startResize(e) {
+  e.preventDefault();
+  const divider = document.getElementById('divider');
+  const textPanel = document.getElementById('text-panel');
+  const startX = e.clientX;
+  const startW = textPanel.offsetWidth;
+  divider.classList.add('dragging');
+  function onMove(e) {
+    const delta = startX - e.clientX;
+    const newW = Math.max(160, Math.min(600, startW + delta));
+    textPanel.style.width = newW + 'px';
+  }
+  function onUp() {
+    divider.classList.remove('dragging');
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (state.xmlData) drawOverlay(state.xmlData);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// ── Zoom ─────────────────────────────────────────────────────────────────────
+function applyZoom() {
+  const img = document.getElementById('main-img');
+  if (!img.naturalWidth) return;
+  const z = state.zoom;
+  // Resize the image directly — canvas sits on top and matches via drawOverlay
+  img.style.width  = Math.round(img.naturalWidth  * z) + 'px';
+  img.style.height = Math.round(img.naturalHeight * z) + 'px';
+  document.getElementById('zoom-label').textContent = Math.round(z * 100) + '%';
+  if (state.xmlData) drawOverlay(state.xmlData);
+}
+
+function fitZoom() {
+  const img = document.getElementById('main-img');
+  const panel = document.getElementById('img-panel');
+  if (!img.naturalWidth) return;
+  const availW = panel.clientWidth  - 32;
+  const availH = panel.clientHeight - 80;
+  const fitZ = Math.min(availW / img.naturalWidth, availH / img.naturalHeight, 1.0);
+  state.zoom = Math.max(0.05, fitZ);
+  applyZoom();
+}
+
+function adjustZoom(delta) {
+  const img = document.getElementById('main-img');
+  if (!img.naturalWidth) return;
+  // zoom around center of visible panel area
+  const panel = document.getElementById('img-panel');
+  const cx = panel.scrollLeft + panel.clientWidth  / 2;
+  const cy = panel.scrollTop  + panel.clientHeight / 2;
+  const oldZ = state.zoom;
+  const newZ = Math.max(0.05, Math.min(8, oldZ + delta));
+  state.zoom = newZ;
+  applyZoom();
+  // re-center scroll on the same point
+  panel.scrollLeft = cx * (newZ / oldZ) - panel.clientWidth  / 2;
+  panel.scrollTop  = cy * (newZ / oldZ) - panel.clientHeight / 2;
+}
+
+function resetZoom() { fitZoom(); }
+
+// mouse-wheel zoom on image panel
+document.getElementById('img-panel').addEventListener('wheel', e => {
+  if (!e.ctrlKey && !e.metaKey) return; // only when Ctrl held
+  e.preventDefault();
+  adjustZoom(e.deltaY < 0 ? 0.12 : -0.12);
+}, { passive: false });
+
+// ── Resize observer: redraw canvas when image panel changes ──────────────────
+const ro = new ResizeObserver(() => {
+  if (state.xmlData && document.getElementById('img-zoom-wrap').style.display !== 'none') {
+    drawOverlay(state.xmlData);
+  }
+});
+ro.observe(document.getElementById('img-panel'));
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+function openSettings() { document.getElementById('settings-overlay').classList.add('open'); }
+function closeSettings() { document.getElementById('settings-overlay').classList.remove('open'); }
+
+let valTimer;
+async function validateDir() {
+  clearTimeout(valTimer);
+  const val = document.getElementById('input-dir').value.trim();
+  const input = document.getElementById('input-dir');
+  const hint = document.getElementById('dir-hint');
+  if (!val) { input.className='dir-input'; hint.textContent=''; return; }
+  valTimer = setTimeout(async () => {
+    try {
+      const r = await fetch('/api/settings/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir:val})}).then(r=>r.json());
+      input.className = 'dir-input ' + (r.valid?'valid':'invalid');
+      hint.className = 'dir-hint ' + (r.valid?'ok':'err');
+      hint.textContent = r.valid ? '✓ Directory found' : '✗ '+(r.error||'Invalid');
+    } catch {}
+  }, 500);
+}
+
+async function saveSettings() {
+  const inputDir = document.getElementById('input-dir').value.trim();
+  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({inputDir})});
+  closeSettings();
+  toast('Settings saved');
+  state.xmlData = null; state.currentDocIdx = -1; state.currentDoc = null;
+  document.getElementById('img-empty').style.display='flex';
+  document.getElementById('img-zoom-wrap').style.display='none';
+  document.getElementById('doc-name').textContent='Select a document';
+  document.getElementById('doc-fmt').style.display='none';
+  document.getElementById('text-scroll').innerHTML='';
+  loadPage(0); refreshStats();
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName==='INPUT') return;
+  if (e.key==='ArrowLeft') { e.preventDefault(); navigateDoc(-1); }
+  if (e.key==='ArrowRight') { e.preventDefault(); navigateDoc(1); }
+  if (e.key==='o'||e.key==='O') toggleOverlay();
+  if (e.key==='Escape') { closeSettings(); }
+  if (e.key==='s'||e.key==='S') openSettings();
+  if (e.key==='+' || e.key==='=') { e.preventDefault(); adjustZoom(+0.15); }
+  if (e.key==='-' || e.key==='_') { e.preventDefault(); adjustZoom(-0.15); }
+  if (e.key==='0') { e.preventDefault(); resetZoom(); }
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function closeIfOverlay(e,id) { if(e.target.id===id) document.getElementById(id).classList.remove('open'); }
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s){ return String(s).replace(/'/g,"\\'"); }
+
+let toastTimer;
+function toast(msg,type='') {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='show'+(type?' '+type:'');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.className='',2600);
+}
+
+init();
+</script>
+</body>
+</html>
