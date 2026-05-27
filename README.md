@@ -2,6 +2,9 @@
 
 A local web viewer for PAGE-XML and ALTO-XML annotated manuscripts. Displays the source image with polygon overlays and a synchronized transcription mirror panel.
 
+## Screenshot
+<img width="3837" height="2024" alt="image" src="https://github.com/user-attachments/assets/7da76599-8a1e-458c-8104-962c54f67cc0" />
+
 ## Features
 
 - **IIIF-style strip** — vertical thumbnail column, one document per row (not card grid)
